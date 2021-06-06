@@ -1,6 +1,6 @@
 const fs = require('fs');
 const mmap = require('mmap-io');
-
+const is = require('electron-util');
 const shm = require('./build/Release/shmmap.node');
 
 // mmap file path
@@ -62,19 +62,34 @@ const self = module.exports = {
 	release(s_key) {
 		// this process created mmap region
 		if(h_creates[s_key]) {
-			// unlink region
-			shm.unlink(s_key);
-
-			// close fd
-			fs.closeSync(h_creates[s_key]);
+			
+			if (is.windows)
+			{
+				// unlink region
+				shm.unlink(h_creates[s_key]);
+			}
+			else
+			{
+				// unlink region
+				shm.unlink(s_key);
+				
+				// close fd
+				fs.closeSync(h_creates[s_key]);
+			}
 
 			// delete from hash
 			delete h_creates[s_key];
 		}
 		// this process accessed mmap region
 		else if(h_attach[s_key]) {
-			// close fd
-			fs.closeSync(h_attach[s_key]);
+			if (is.windows)
+			{
+			}
+			else
+			{
+				// close fd
+				fs.closeSync(h_attach[s_key]);
+			}
 
 			// delete from hash
 			delete h_attach[s_key];
