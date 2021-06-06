@@ -3,17 +3,27 @@
 #include <errno.h>
 #include <string.h>
 
-#include <sys/mman.h>  /* shm_open(), shm_unlink() */
-#include <sys/stat.h>  /* for mode constants */
-#include <sys/fcntl.h>  /* for O_* constants */
+#ifdef _WIN32
 
-#include <unistd.h>  /* ftruncate() */
-#include <sys/types.h>  /* types */
+	#include <windows.h>
+
+#else
+
+	#include <sys/mman.h>  /* shm_open(), shm_unlink() */
+	#include <sys/stat.h>  /* for mode constants */
+	#include <sys/fcntl.h>  /* for O_* constants */
+
+	#include <unistd.h>  /* ftruncate() */
+	#include <sys/types.h>  /* types */
+
+#endif
 
 #define NAN_RETURN(X) info.GetReturnValue().Set(X)
 
 using namespace v8;
-
+using v8::String;
+using Nan::GetFunction;
+using Nan::New;
 
 /**
  * Make it simpler the next time V8 breaks API's and such with a wrapper fn...
@@ -77,6 +87,16 @@ NAN_METHOD(open) {
 		|| !info[2]->IsUint32()
 	) return Nan::ThrowError("open() expects 3 args: (name: string, open_flags: uint and mode: uint)");
 
+#ifdef _WIN32
+
+	HANDLE hHandle = CreateEvent(NULL, TRUE, TRUE, NULL);
+
+	if (NULL == hHandle) return NanThrowErrno(errno, "shm_open", "failed to open memory segment(CreateEvent)");
+
+	NAN_RETURN((int)hHandle);
+
+#else
+
 	const int xm_flags = get_v<int>(info[1], 0);
 	const mode_t x_mode = get_v<int>(info[2], 0);
 
@@ -86,9 +106,11 @@ NAN_METHOD(open) {
 
 	int if_shm = shm_open(sc_name, xm_flags, x_mode);
 
-	if(-1 == if_shm) return NanThrowErrno(errno, "shm_open", "failed to open memory segment");
+	if (-1 == if_shm) return NanThrowErrno(errno, "shm_open", "failed to open memory segment");
 
 	NAN_RETURN(if_shm);
+
+#endif
 }
 
 NAN_METHOD(resize) {
@@ -97,17 +119,38 @@ NAN_METHOD(resize) {
 		|| !info[1]->IsUint32()
 	) return Nan::ThrowError("size() expects 2 args: (fd: uint, size: uint)");
 
+	// about ftruncate http://c.biancheng.net/cpp/html/315.html
+
+#ifdef _WIN32
+
+	// Windows does not have a function for this function.
+
+#else
+
 	const int if_shm = get_v<int>(info[0], 0);
 	const off_t nb_shm = get_v<int>(info[1], 0);
 
 	int ib_truncate = ftruncate(if_shm, nb_shm);
 
-	if(-1 == ib_truncate) return Nan::ThrowError("failed to truncate file");
+	if (-1 == ib_truncate) return Nan::ThrowError("failed to truncate file");
+
+#endif
 }
 
 
 NAN_METHOD(unlink) {
 	Nan::HandleScope();
+
+#ifdef _WIN32
+
+	if(info.Length() != 1
+		|| !info[0]->IsUint32()
+		) return Nan::ThrowError("unlink() expects 1 arg: (name: number)");
+
+	const int hHandle = get_v<int>(info[0], 0);
+	CloseHandle((HANDLE)hHandle);
+
+#else
 
 	if(info.Length() != 1
 		|| !info[0]->IsString()
@@ -120,13 +163,19 @@ NAN_METHOD(unlink) {
 	int ib_unlink = shm_unlink(sc_name);
 
 	if(-1 == ib_unlink) return Nan::ThrowError("failed to unlink file");
+
+#endif
 }
 
 
 NAN_MODULE_INIT(Init) {
 	NAN_EXPORT(target, open);
 	NAN_EXPORT(target, resize);
-	NAN_EXPORT(target, unlink);
+	// TODO:Figure out why  error C3861: "Export": identifier not found
+	// NAN_EXPORT(target, unlink);
+
+	Nan::Set(target, New<String>("unlink").ToLocalChecked(),
+   			GetFunction(New<FunctionTemplate>(unlink)).ToLocalChecked());
 
 	NODE_DEFINE_CONSTANT(target, O_RDONLY);
 	NODE_DEFINE_CONSTANT(target, O_RDWR);
