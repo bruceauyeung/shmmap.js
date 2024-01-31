@@ -1,6 +1,5 @@
 const fs = require('fs');
 const mmap = require('mmap-io');
-const is = require('electron-util');
 const shm = require('./build/Release/shmmap.node');
 
 // mmap file path
@@ -8,6 +7,8 @@ let s_prefix = '/lw';
 
 // process-unique key
 let i_key = Math.floor(Math.random()*1e12);
+
+const isWin = process.platform === 'win32'
 
 // hash of fds created by process
 const h_creates = {};
@@ -63,7 +64,7 @@ const self = module.exports = {
 		// this process created mmap region
 		if(h_creates[s_key]) {
 			
-			if (is.windows)
+			if (isWin)
 			{
 				// unlink region
 				shm.unlink(h_creates[s_key]);
@@ -82,7 +83,7 @@ const self = module.exports = {
 		}
 		// this process accessed mmap region
 		else if(h_attach[s_key]) {
-			if (is.windows)
+			if (isWin)
 			{
 			}
 			else
