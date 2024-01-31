@@ -16,6 +16,7 @@
     },
     "dependencies": {
         "mmap-io": "bruceauyeung/mmap-io#master",
-        "nan": "^2.14.0"
+        "nan": "^2.14.0",
+        "electron-util": "0.17.2"
     }
 }
